@@ -41,17 +41,25 @@ async def login(request: Request, payload: LoginRequest):
 
     account = await get_admin_account()
     if not account or not verify_password(payload.password, account["password_hash"]):
-        await create_notification("security", f"Failed admin login attempt from IP {request.client.host}")
+        await create_notification(
+            "security",
+            f"Failed admin login attempt from IP {request.client.host}"
+        )
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     code = generate_otp()
     await store_otp(settings.admin_email, code, purpose="login")
+
     try:
         send_otp_email(settings.admin_email, code)
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to send OTP email, check SMTP settings")
-    return {"message": "Password verified, OTP sent to your email"}
+    except Exception as e:
+        print(f"SMTP ERROR: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"SMTP Error: {str(e)}"
+        )
 
+    return {"message": "Password verified, OTP sent to your email"}
 
 @router.post("/verify-login-otp", response_model=TokenResponse)
 @limiter.limit("10/minute")
@@ -97,15 +105,22 @@ async def logout(payload: LogoutRequest):
 async def forgot_password(request: Request, payload: ForgotPasswordRequest):
     if payload.email.lower() != settings.admin_email.lower():
         return {"message": "If this email is registered, a reset code has been sent"}
+
     code = generate_otp()
     await store_otp(settings.admin_email, code, purpose="reset")
+
     try:
         send_otp_email(settings.admin_email, code)
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to send OTP email, check SMTP settings")
+    except Exception as e:
+        print(f"SMTP ERROR: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"SMTP Error: {str(e)}"
+        )
+
     return {"message": "If this email is registered, a reset code has been sent"}
-
-
+    
+    
 @router.post("/reset-password")
 @limiter.limit("5/minute")
 async def reset_password(request: Request, payload: ResetPasswordRequest):
