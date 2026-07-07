@@ -1,22 +1,34 @@
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import requests
 from app.config import settings
+
+BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
 
 
 def _send(to_email: str, subject: str, html_body: str, reply_to: str | None = None):
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"] = settings.smtp_username
-    msg["To"] = to_email
+    """
+    Sends email via Brevo's HTTPS API instead of raw SMTP.
+    Render (and many free-tier hosts) block outbound SMTP ports (25/465/587),
+    which causes "Network is unreachable" errors. Brevo's API works over
+    HTTPS (port 443), which is never blocked.
+    """
+    payload = {
+        "sender": {"name": settings.brevo_sender_name, "email": settings.brevo_sender_email},
+        "to": [{"email": to_email}],
+        "subject": subject,
+        "htmlContent": html_body,
+    }
     if reply_to:
-        msg["Reply-To"] = reply_to
-    msg.attach(MIMEText(html_body, "html"))
+        payload["replyTo"] = {"email": reply_to}
 
-    with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
-        server.starttls()
-        server.login(settings.smtp_username, settings.smtp_app_password)
-        server.sendmail(settings.smtp_username, to_email, msg.as_string())
+    headers = {
+        "accept": "application/json",
+        "api-key": settings.brevo_api_key,
+        "content-type": "application/json",
+    }
+
+    response = requests.post(BREVO_API_URL, json=payload, headers=headers, timeout=10)
+    if response.status_code >= 300:
+        raise RuntimeError(f"Brevo email send failed ({response.status_code}): {response.text}")
 
 
 def send_otp_email(to_email: str, code: str):

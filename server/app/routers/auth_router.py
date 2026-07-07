@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, HTTPException, Request, Depends
 
 from app.config import settings
@@ -26,14 +28,16 @@ from app.auth import (
     verify_password,
     get_current_admin,
 )
-from app.email_utils import send_otp_email
+from app.email_utils import send_otp_email  # still used by forgot-password OTP flow below
 from app.limiter import limiter
 from app.notifications import create_notification
+
+logger = logging.getLogger("uvicorn.error")
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
-@router.post("/login")
+@router.post("/login", response_model=TokenResponse)
 @limiter.limit("5/minute")
 async def login(request: Request, payload: LoginRequest):
     if payload.email.lower() != settings.admin_email.lower():
@@ -41,34 +45,8 @@ async def login(request: Request, payload: LoginRequest):
 
     account = await get_admin_account()
     if not account or not verify_password(payload.password, account["password_hash"]):
-        await create_notification(
-            "security",
-            f"Failed admin login attempt from IP {request.client.host}"
-        )
+        await create_notification("security", f"Failed admin login attempt from IP {request.client.host}")
         raise HTTPException(status_code=401, detail="Invalid email or password")
-
-    code = generate_otp()
-    await store_otp(settings.admin_email, code, purpose="login")
-
-    try:
-        send_otp_email(settings.admin_email, code)
-    except Exception as e:
-        print(f"SMTP ERROR: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"SMTP Error: {str(e)}"
-        )
-
-    return {"message": "Password verified, OTP sent to your email"}
-
-@router.post("/verify-login-otp", response_model=TokenResponse)
-@limiter.limit("10/minute")
-async def verify_login_otp(request: Request, payload: OTPVerify):
-    if payload.email.lower() != settings.admin_email.lower():
-        raise HTTPException(status_code=403, detail="Not authorized")
-    ok = await verify_otp(settings.admin_email, payload.code, purpose="login")
-    if not ok:
-        raise HTTPException(status_code=400, detail="Invalid or expired OTP")
 
     access_token = create_access_token(settings.admin_email)
     refresh_token = await create_refresh_token(settings.admin_email)
@@ -105,22 +83,16 @@ async def logout(payload: LogoutRequest):
 async def forgot_password(request: Request, payload: ForgotPasswordRequest):
     if payload.email.lower() != settings.admin_email.lower():
         return {"message": "If this email is registered, a reset code has been sent"}
-
     code = generate_otp()
     await store_otp(settings.admin_email, code, purpose="reset")
-
     try:
         send_otp_email(settings.admin_email, code)
-    except Exception as e:
-        print(f"SMTP ERROR: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"SMTP Error: {str(e)}"
-        )
-
+    except Exception:
+        logger.exception("Failed to send OTP email via Brevo")
+        raise HTTPException(status_code=500, detail="Failed to send OTP email, check Brevo settings")
     return {"message": "If this email is registered, a reset code has been sent"}
-    
-    
+
+
 @router.post("/reset-password")
 @limiter.limit("5/minute")
 async def reset_password(request: Request, payload: ResetPasswordRequest):

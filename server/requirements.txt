@@ -9,4 +9,4 @@ pydantic-settings
 python-jose[cryptography]
 python-dotenv
 python-multipart
-email-validator
+requests

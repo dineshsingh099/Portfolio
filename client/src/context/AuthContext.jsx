@@ -27,13 +27,9 @@ export function AuthProvider({ children }) {
     localStorage.removeItem("admin_refresh_token");
   }, []);
 
-  const login = useCallback(async (loginEmail, password) => {
-    await api.post("/api/auth/login", { email: loginEmail, password });
-  }, []);
-
-  const verifyLoginOtp = useCallback(
-    async (loginEmail, code) => {
-      const res = await api.post("/api/auth/verify-login-otp", { email: loginEmail, code });
+  const login = useCallback(
+    async (loginEmail, password) => {
+      const res = await api.post("/api/auth/login", { email: loginEmail, password });
       persistTokens(res.data.access_token, res.data.refresh_token, loginEmail);
     },
     [persistTokens]
@@ -68,7 +64,6 @@ export function AuthProvider({ children }) {
         isAdmin: Boolean(accessToken),
         email,
         login,
-        verifyLoginOtp,
         logout,
         forgotPassword,
         resetPassword,

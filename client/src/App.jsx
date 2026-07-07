@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import { PortfolioProvider, usePortfolio } from "./context/PortfolioContext";
@@ -14,11 +15,26 @@ import Footer from "./components/Footer";
 import BackToTop from "./components/BackToTop";
 import CursorFX from "./components/CursorFX";
 import ProtectedRoute from "./admin/ProtectedRoute";
-import AdminLoginPage from "./admin/pages/AdminLoginPage";
-import ForgotPasswordPage from "./admin/pages/ForgotPasswordPage";
-import AdminDashboard from "./admin/pages/AdminDashboard";
 import useReveal from "./hooks/useReveal";
 import usePageTracking from "./hooks/usePageTracking";
+
+// Admin pages are only needed by the site owner, not by regular visitors.
+// Lazy-loading them keeps the admin dashboard, edit forms, etc. out of the
+// main bundle that every visitor downloads — the public portfolio loads
+// faster, and admin code is only fetched when someone actually visits
+// /admin/*.
+const AdminLoginPage = lazy(() => import("./admin/pages/AdminLoginPage"));
+const ForgotPasswordPage = lazy(() => import("./admin/pages/ForgotPasswordPage"));
+const AdminDashboard = lazy(() => import("./admin/pages/AdminDashboard"));
+
+function AdminFallback() {
+  return (
+    <div className="loading-screen">
+      <div className="loading-spinner"></div>
+      <p>Loading admin panel...</p>
+    </div>
+  );
+}
 
 function PortfolioSite() {
   const { content, loading, error } = usePortfolio();
@@ -45,7 +61,6 @@ function PortfolioSite() {
 
   return (
     <>
-      <CursorFX />
       <Navbar resumeUrl={content.hero.resumeUrl} />
       <Hero hero={content.hero} />
       <About about={content.about} resumeUrl={content.hero.resumeUrl} />
@@ -83,15 +98,32 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <PortfolioProvider>
+          <CursorFX />
           <Routes>
             <Route path="/" element={<PortfolioSite />} />
-            <Route path="/admin/login" element={<AdminLoginPage />} />
-            <Route path="/admin/forgot-password" element={<ForgotPasswordPage />} />
+            <Route
+              path="/admin/login"
+              element={
+                <Suspense fallback={<AdminFallback />}>
+                  <AdminLoginPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/admin/forgot-password"
+              element={
+                <Suspense fallback={<AdminFallback />}>
+                  <ForgotPasswordPage />
+                </Suspense>
+              }
+            />
             <Route
               path="/admin"
               element={
                 <ProtectedRoute>
-                  <AdminDashboard />
+                  <Suspense fallback={<AdminFallback />}>
+                    <AdminDashboard />
+                  </Suspense>
                 </ProtectedRoute>
               }
             />
