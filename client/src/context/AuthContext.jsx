@@ -1,5 +1,5 @@
-import { createContext, useContext, useState, useCallback } from "react";
-import api, { setAccessToken } from "../api";
+import { createContext, useContext, useState, useCallback, useEffect } from "react";
+import api, { setAccessToken } from "../services/api";
 
 const AuthContext = createContext(null);
 
@@ -25,6 +25,8 @@ export function AuthProvider({ children }) {
     setAccessToken(null);
     localStorage.removeItem("admin_access_token");
     localStorage.removeItem("admin_refresh_token");
+    localStorage.removeItem("admin_email");
+    setEmail("");
   }, []);
 
   const login = useCallback(
@@ -57,6 +59,29 @@ export function AuthProvider({ children }) {
     await api.post("/api/auth/change-password", { old_password: oldPassword, new_password: newPassword });
     clearTokens();
   }, [clearTokens]);
+
+  // Keep every open tab in sync. Two things this fixes:
+  // 1) If tab A silently refreshes the token in the background (axios
+  //    interceptor in api.js), tab B's React state/module-level token
+  //    variable would otherwise stay stale until its own next request. The
+  //    "storage" event fires in *other* tabs whenever localStorage changes,
+  //    so we pick up the new access token immediately.
+  // 2) If tab A logs out (or a refresh ultimately fails and tokens are
+  //    cleared), tab B stops treating itself as logged in instead of making
+  //    doomed requests with a token that's already dead server-side.
+  useEffect(() => {
+    function handleStorage(e) {
+      if (e.key === "admin_access_token") {
+        setAccessTokenState(e.newValue);
+        setAccessToken(e.newValue);
+      }
+      if (e.key === "admin_email") {
+        setEmail(e.newValue || "");
+      }
+    }
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
 
   return (
     <AuthContext.Provider

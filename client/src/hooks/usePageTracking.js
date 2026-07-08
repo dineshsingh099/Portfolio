@@ -1,8 +1,13 @@
 import { useEffect } from "react";
-import api from "../api";
+import api from "../services/api";
 
 export default function usePageTracking() {
   useEffect(() => {
-    api.post("/api/analytics/track", { path: window.location.pathname || "/" }).catch(() => {});
+    api
+      .post("/api/analytics/track", {
+        path: window.location.pathname || "/",
+        referrer: document.referrer || "",
+      })
+      .catch(() => {});
   }, []);
 }

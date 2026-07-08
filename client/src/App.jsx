@@ -1,135 +1,197 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+
 import { AuthProvider } from "./context/AuthContext";
 import { PortfolioProvider, usePortfolio } from "./context/PortfolioContext";
-import Navbar from "./components/Navbar";
-import Hero from "./components/Hero";
-import About from "./components/About";
-import Skills from "./components/Skills";
-import Timeline from "./components/Timeline";
-import Projects from "./components/Projects";
-import Certifications from "./components/Certifications";
-import Resume from "./components/Resume";
-import Contact from "./components/Contact";
-import Footer from "./components/Footer";
-import BackToTop from "./components/BackToTop";
-import CursorFX from "./components/CursorFX";
-import ProtectedRoute from "./admin/ProtectedRoute";
+
+import Navbar from "./portfolio/layout/Navbar";
+import Footer from "./portfolio/layout/Footer";
+import BackToTop from "./portfolio/layout/BackToTop";
+
+import Hero from "./portfolio/home/Hero";
+import CursorFX from "./effects/CursorFX";
+
+import ProtectedRoute from "./admin/auth/ProtectedRoute";
+
+import PortfolioSkeleton, {
+	SectionsSkeleton,
+} from "./effects/Skeleton";
+import {
+	AdminDashboardSkeleton,
+	AuthCardSkeleton,
+} from "./admin/dashboard/DashboardSkeleton";
+
 import useReveal from "./hooks/useReveal";
 import usePageTracking from "./hooks/usePageTracking";
 
-// Admin pages are only needed by the site owner, not by regular visitors.
-// Lazy-loading them keeps the admin dashboard, edit forms, etc. out of the
-// main bundle that every visitor downloads — the public portfolio loads
-// faster, and admin code is only fetched when someone actually visits
-// /admin/*.
-const AdminLoginPage = lazy(() => import("./admin/pages/AdminLoginPage"));
-const ForgotPasswordPage = lazy(() => import("./admin/pages/ForgotPasswordPage"));
-const AdminDashboard = lazy(() => import("./admin/pages/AdminDashboard"));
+const About = lazy(() => import("./portfolio/home/About"));
+const Skills = lazy(() => import("./portfolio/home/Skills"));
+const Timeline = lazy(() => import("./portfolio/home/Timeline"));
+const Projects = lazy(() => import("./portfolio/home/Projects"));
+const Certifications = lazy(() => import("./portfolio/home/Certifications"));
+const Resume = lazy(() => import("./portfolio/home/Resume"));
+const Contact = lazy(() => import("./portfolio/home/Contact"));
 
-function AdminFallback() {
-  return (
-    <div className="loading-screen">
-      <div className="loading-spinner"></div>
-      <p>Loading admin panel...</p>
-    </div>
-  );
+const AdminLoginPage = lazy(() => import("./admin/auth/AdminLoginPage"));
+const ForgotPasswordPage = lazy(
+	() => import("./admin/auth/ForgotPasswordPage"),
+);
+const AdminDashboard = lazy(() => import("./admin/dashboard/AdminDashboard"));
+
+function setMeta(name, content, attr = "name") {
+	if (!content) return;
+
+	let element = document.querySelector(`meta[${attr}="${name}"]`);
+
+	if (!element) {
+		element = document.createElement("meta");
+		element.setAttribute(attr, name);
+		document.head.appendChild(element);
+	}
+
+	element.setAttribute("content", content);
+}
+
+function useSEO(seo) {
+	useEffect(() => {
+		if (!seo) return;
+
+		if (seo.metaTitle) {
+			document.title = seo.metaTitle;
+		}
+
+		setMeta("description", seo.metaDescription);
+
+		if (seo.metaKeywords?.length) {
+			setMeta("keywords", seo.metaKeywords.join(", "));
+		}
+
+		setMeta("og:title", seo.metaTitle, "property");
+		setMeta("og:description", seo.metaDescription, "property");
+
+		if (seo.ogImage) {
+			setMeta("og:image", seo.ogImage, "property");
+		}
+
+		if (seo.googleSiteVerification) {
+			setMeta("google-site-verification", seo.googleSiteVerification);
+		}
+	}, [seo]);
 }
 
 function PortfolioSite() {
-  const { content, loading, error } = usePortfolio();
-  useReveal([content]);
-  usePageTracking();
+	const { content, loading, error } = usePortfolio();
 
-  if (loading) {
-    return (
-      <div className="loading-screen">
-        <div className="loading-spinner"></div>
-        <p>Loading portfolio...</p>
-      </div>
-    );
-  }
+	useReveal([content]);
+	usePageTracking();
+	useSEO(content?.seo);
 
-  if (error || !content) {
-    return (
-      <div className="error-screen">
-        <i className="fa-solid fa-triangle-exclamation" style={{ fontSize: 32, color: "#ff8080" }}></i>
-        <p>{error || "Something went wrong."}</p>
-      </div>
-    );
-  }
+	if (loading) {
+		return <PortfolioSkeleton />;
+	}
 
-  return (
-    <>
-      <Navbar resumeUrl={content.hero.resumeUrl} />
-      <Hero hero={content.hero} />
-      <About about={content.about} resumeUrl={content.hero.resumeUrl} />
-      <Skills skills={content.skills} />
-      <Timeline
-        id="experience"
-        eyebrowText="WORK EXPERIENCE"
-        title="Professional Journey"
-        items={content.experience}
-        dotClass="exp-dot"
-        badgeClass="exp"
-        section="experience"
-      />
-      <Timeline
-        id="education"
-        eyebrowText="EDUCATION"
-        title="Academic Background"
-        items={content.education}
-        dotClass="edu-dot"
-        badgeClass="edu"
-        section="education"
-      />
-      <Projects projects={content.projects} />
-      <Certifications certifications={content.certifications} />
-      <Resume resume={content.resume} />
-      <Contact contact={content.contact} />
-      <Footer />
-      <BackToTop />
-    </>
-  );
+	if (error || !content) {
+		return (
+			<div className="error-screen">
+				<i
+					className="fa-solid fa-triangle-exclamation"
+					style={{ fontSize: 32, color: "#ff8080" }}
+				/>
+				<p>{error || "Something went wrong."}</p>
+			</div>
+		);
+	}
+
+	return (
+		<div className="page-enter">
+			<Navbar resumeUrl={content.hero.resumeUrl} />
+
+			<Hero hero={content.hero} />
+
+			<Suspense fallback={<SectionsSkeleton />}>
+				<div className="section-enter">
+					<About about={content.about} resumeUrl={content.hero.resumeUrl} />
+
+					<Skills skills={content.skills} />
+
+					<Timeline
+						id="experience"
+						eyebrowText="WORK EXPERIENCE"
+						title="Professional Journey"
+						items={content.experience}
+						dotClass="exp-dot"
+						badgeClass="exp"
+						section="experience"
+					/>
+
+					<Timeline
+						id="education"
+						eyebrowText="EDUCATION"
+						title="Academic Background"
+						items={content.education}
+						dotClass="edu-dot"
+						badgeClass="edu"
+						section="education"
+					/>
+
+					<Projects projects={content.projects} />
+
+					<Certifications certifications={content.certifications} />
+
+					<Resume resume={content.resume} />
+
+					<Contact contact={content.contact} />
+
+					<Footer />
+				</div>
+			</Suspense>
+
+			<BackToTop />
+		</div>
+	);
 }
 
 export default function App() {
-  return (
-    <BrowserRouter>
-      <AuthProvider>
-        <PortfolioProvider>
-          <CursorFX />
-          <Routes>
-            <Route path="/" element={<PortfolioSite />} />
-            <Route
-              path="/admin/login"
-              element={
-                <Suspense fallback={<AdminFallback />}>
-                  <AdminLoginPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="/admin/forgot-password"
-              element={
-                <Suspense fallback={<AdminFallback />}>
-                  <ForgotPasswordPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="/admin"
-              element={
-                <ProtectedRoute>
-                  <Suspense fallback={<AdminFallback />}>
-                    <AdminDashboard />
-                  </Suspense>
-                </ProtectedRoute>
-              }
-            />
-          </Routes>
-        </PortfolioProvider>
-      </AuthProvider>
-    </BrowserRouter>
-  );
+	return (
+		<BrowserRouter>
+			<AuthProvider>
+				<PortfolioProvider>
+					<CursorFX />
+
+					<Routes>
+						<Route path="/" element={<PortfolioSite />} />
+
+						<Route
+							path="/admin/login"
+							element={
+								<Suspense fallback={<AuthCardSkeleton />}>
+									<AdminLoginPage />
+								</Suspense>
+							}
+						/>
+
+						<Route
+							path="/admin/forgot-password"
+							element={
+								<Suspense fallback={<AuthCardSkeleton />}>
+									<ForgotPasswordPage />
+								</Suspense>
+							}
+						/>
+
+						<Route
+							path="/admin"
+							element={
+								<ProtectedRoute>
+									<Suspense fallback={<AdminDashboardSkeleton />}>
+										<AdminDashboard />
+									</Suspense>
+								</ProtectedRoute>
+							}
+						/>
+					</Routes>
+				</PortfolioProvider>
+			</AuthProvider>
+		</BrowserRouter>
+	);
 }

@@ -3,10 +3,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 
-from app.config import settings
-from app.limiter import limiter
-from app.routers import auth_router, content_router, contact_router, analytics_router, notifications_router
-from app.auth import ensure_admin_account
+from app.core.settings import settings
+from app.core.limiter import limiter
+from app.routers import (
+    auth_router,
+    content_router,
+    contact_router,
+    analytics_router,
+    notifications_router,
+    messages_router,
+    settings_router,
+    profile_router,
+)
+from app.services.auth import ensure_admin_account
 
 app = FastAPI(
     title="Portfolio API",
@@ -58,6 +67,9 @@ app.include_router(content_router.router)
 app.include_router(contact_router.router)
 app.include_router(analytics_router.router)
 app.include_router(notifications_router.router)
+app.include_router(messages_router.router)
+app.include_router(settings_router.router)
+app.include_router(profile_router.router)
 
 
 @app.get("/api/health")

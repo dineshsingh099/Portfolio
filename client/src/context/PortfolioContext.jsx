@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
-import api from "../api";
+import api from "../services/api";
 
 const PortfolioContext = createContext(null);
 const CACHE_KEY = "portfolio_content_cache_v1";

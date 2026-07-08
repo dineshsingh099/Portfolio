@@ -2,8 +2,8 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Request, Depends
 
-from app.config import settings
-from app.models import (
+from app.core.settings import settings
+from app.models.models import (
     LoginRequest,
     OTPVerify,
     TokenResponse,
@@ -14,7 +14,7 @@ from app.models import (
     ResetPasswordRequest,
     ChangePasswordRequest,
 )
-from app.auth import (
+from app.services.auth import (
     generate_otp,
     store_otp,
     verify_otp,
@@ -28,9 +28,9 @@ from app.auth import (
     verify_password,
     get_current_admin,
 )
-from app.email_utils import send_otp_email  # still used by forgot-password OTP flow below
-from app.limiter import limiter
-from app.notifications import create_notification
+from app.utils.email_utils import send_otp_email  # still used by forgot-password OTP flow below
+from app.core.limiter import limiter
+from app.services.notifications import create_notification
 
 logger = logging.getLogger("uvicorn.error")
 

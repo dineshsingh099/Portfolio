@@ -1,8 +1,8 @@
 from bson import ObjectId
 from fastapi import APIRouter, Depends
 
-from app.database import notifications_collection
-from app.auth import get_current_admin
+from app.db.connection import notifications_collection
+from app.services.auth import get_current_admin
 
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 
